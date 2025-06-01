@@ -6,7 +6,6 @@ A Model Context Protocol (MCP) server that provides access to NOTAMs (Notice to 
 
 - 🛩️ **NOTAM Retrieval** - Get active NOTAMs for specific airports
 - 🕐 **Time Filtering** - Query NOTAMs for specific date/time ranges
-- 🔍 **Search by ID** - Retrieve specific NOTAMs by their unique identifiers
 - 📊 **Rich Interpretations** - Access AI-generated interpretations of NOTAM data
 - 🌍 **Global Coverage** - Support for worldwide airports using ICAO codes
 - 📄 **Pagination** - Handle large result sets automatically
@@ -74,18 +73,6 @@ Retrieve NOTAMs for specified airports and time periods.
 get_notams(locations="KJFK,EGLL", hours_from_now=48)
 ```
 
-### `get_notams_by_ids`
-Retrieve specific NOTAMs by their unique identifiers.
-
-**Parameters:**
-- `notam_ids` (required) - Comma-separated list of NOTAM IDs
-
-### `generate_time_range`
-Generate properly formatted timestamps for NOTAM queries.
-
-**Parameters:**
-- `hours_from_now` (optional) - Hours from current time (default: 24)
-
 ### `get_affected_elements`
 Extract and display all affected elements from NOTAMs for specified airports.
 
@@ -124,18 +111,6 @@ get_notams(locations="KJFK,EGLL")
 ```
 get_affected_elements(locations="EDDM", hours_from_now=48)
 ```
-
-### Common ICAO Codes
-| Code | Airport | Location |
-|------|---------|----------|
-| KJFK | John F. Kennedy Intl | New York, USA |
-| EGLL | London Heathrow | London, UK |
-| EDDM | Munich Airport | Munich, Germany |
-| KLAX | Los Angeles Intl | Los Angeles, USA |
-| KORD | Chicago O'Hare | Chicago, USA |
-| EDDF | Frankfurt Airport | Frankfurt, Germany |
-| LFPG | Charles de Gaulle | Paris, France |
-| EHAM | Amsterdam Schiphol | Amsterdam, Netherlands |
 
 ## Limitations
 

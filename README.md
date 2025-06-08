@@ -19,7 +19,13 @@ A Model Context Protocol (MCP) server that provides access to NOTAMs (Notice to 
 
 ### Setup
 
-1. **Install dependencies**:
+1. **Fetch the repository**:
+   ```bash
+   git pull https://github.com/skymerse/notamify-mcp
+   ```
+
+
+2. **Install dependencies**:
    ```bash
    # Using uv (recommended)
    uv sync
@@ -28,32 +34,26 @@ A Model Context Protocol (MCP) server that provides access to NOTAMs (Notice to 
    pip install -r requirements.txt
    ```
 
-2. **Configure API key**:
+3. **Configure API key**:
    ```bash
    cp env.example .env
    # Edit .env and add your API key:
    # NOTAMIFY_API_KEY=your_actual_api_key_here
    ```
 
-3. **Make executable**:
+4. **Make executable**:
    ```bash
    chmod +x notamify_server.py
    ```
 
 ## Usage
 
-### Testing
-```bash
-# Test with MCP Inspector
-uv run mcp dev notamify_server.py
-```
-
 ### Claude Desktop Integration
 ```bash
 # Install the server
 uv run mcp install notamify_server.py --name "Notamify NOTAM Server"
 
-# With environment variables
+# With environment variables, if not set previously
 uv run mcp install notamify_server.py -v NOTAMIFY_API_KEY=your_key_here
 ```
 

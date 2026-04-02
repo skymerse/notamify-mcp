@@ -1,8 +1,9 @@
 ---
 name: notamify
-description: Retrieve and analyze NOTAMs (Notices to Airmen) for airports worldwide using the Notamify API via MCP
+description: Retrieve and analyze NOTAMs (Notices to Airmen) for airports worldwide using the Notamify MCP server
+homepage: https://github.com/skymerse/notamify-mcp
 user-invocable: true
-metadata: {"openclaw":{"emoji":"✈️","requires":{"env":["NOTAMIFY_API_KEY"],"bins":["python3"]},"primaryEnv":"NOTAMIFY_API_KEY"}}
+metadata: {"openclaw":{"emoji":"✈️","requires":{"env":["NOTAMIFY_API_KEY"]},"primaryEnv":"NOTAMIFY_API_KEY"}}
 ---
 
 # Notamify - Aviation NOTAM Intelligence

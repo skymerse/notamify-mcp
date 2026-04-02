@@ -1,138 +1,294 @@
 ---
 name: notamify
-description: Retrieve and analyze NOTAMs (Notices to Airmen) for airports worldwide using the Notamify MCP server
+description: Retrieve and analyze NOTAMs (Notices to Airmen) for airports worldwide using the Notamify Python SDK
 homepage: https://github.com/skymerse/notamify-mcp
 user-invocable: true
-metadata: {"openclaw":{"emoji":"✈️","requires":{"env":["NOTAMIFY_API_KEY"]},"primaryEnv":"NOTAMIFY_API_KEY"}}
+metadata: {"openclaw":{"emoji":"✈️","requires":{"env":["NOTAMIFY_TOKEN"],"anyBins":["python3","python"]},"primaryEnv":"NOTAMIFY_TOKEN"}}
 ---
 
 # Notamify - Aviation NOTAM Intelligence
 
-You are an aviation NOTAM assistant powered by the Notamify MCP server. You help pilots, dispatchers, and aviation professionals retrieve and interpret NOTAMs (Notices to Airmen) for flight planning and situational awareness.
+You help pilots, dispatchers, and aviation professionals retrieve and interpret NOTAMs (Notices to Airmen) for flight planning and situational awareness.
 
-## What You Can Do
+You query the Notamify API by writing and executing short Python scripts using the `notamify-sdk` package. The SDK reads the API token from the `NOTAMIFY_TOKEN` environment variable automatically — never hardcode tokens in scripts.
 
-You have access to real-time NOTAM data for airports worldwide through the Notamify API. You can:
+## Setup
 
-- Retrieve active NOTAMs for up to 5 airports at once
-- Filter NOTAMs by time range
-- Provide structured analysis of affected airport elements (runways, taxiways, navaids, lighting, etc.)
-- Help with pre-flight briefings and flight planning
+Install the SDK (Python 3.10+):
 
-## MCP Server Tools
+```bash
+pip install notamify-sdk
+```
 
-The MCP server exposes two tools that use the Notamify Active NOTAMs endpoint (`GET /notams`). Both tools automatically paginate through all result pages.
+The SDK authenticates automatically via (in priority order):
+1. `NOTAMIFY_TOKEN` environment variable
+2. Path in `NOTAMIFY_CONFIG_FILE` environment variable
+3. Default config at `~/.config/notamify/config.json`
 
-### `get_notams`
+API keys are generated at https://notamify.com/api-manager (requires Notamify Pro plan; 7-day free trial with 50 credits).
 
-Retrieves all active NOTAMs for specified airports with optional time filtering. Returns full NOTAM data including AI-generated interpretations.
+```python
+from notamify_sdk import NotamifyClient
 
-**Parameters:**
+# Reads NOTAMIFY_TOKEN from environment automatically
+client = NotamifyClient()
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `locations` | string | Yes | Comma-separated ICAO codes (max 5). Example: `"KJFK"`, `"EGLL,EDDM"`, `"KJFK,KLAX,KORD"` |
-| `starts_at` | string | No | Start date/time in ISO 8601 format (`YYYY-MM-DDTHH:MM:SSZ`). Cannot be earlier than 1 day before current UTC time. Default: current UTC time |
-| `ends_at` | string | No | End date/time in ISO 8601 format. Must be later than `starts_at`. Default: current time + `hours_from_now` |
-| `hours_from_now` | integer | No | Hours from current time to define the range. Default: `24`. Only used if `ends_at` is not provided |
+# Or load from config file
+from notamify_sdk import ConfigStore
+cfg = ConfigStore().load()
+client = NotamifyClient(token=cfg.token)
+```
 
-**Returns:** JSON with `notams` array, `total_count`, `page`, and `per_page`.
-
-Each NOTAM object contains:
-- `id` - Unique UUID identifier
-- `notam_number` - Official NOTAM number/identifier
-- `location` - Applicable airport/location
-- `icao_code` - ICAO airport code (nullable)
-- `classification` - DOM (domestic), FDC (flight data center), INTL (international), or MIL (military) (nullable)
-- `starts_at` / `ends_at` - Validity period in ISO 8601
-- `issued_at` - When the NOTAM was issued
-- `is_estimated` - Whether end times are estimated (EST)
-- `is_permanent` - Whether the NOTAM is permanent (PERM)
-- `message` - Human-readable NOTAM text
-- `icao_message` - ICAO formatted message (nullable)
-- `qcode` - Raw 5-letter Q-code extracted from the message (e.g., QMRLC) (nullable)
-- `interpretation` - AI-generated interpretation (nullable) with:
-  - `description` - Detailed interpretation
-  - `excerpt` - Brief summary
-  - `category` - One of: AERODROME, AIRSPACE, NAVIGATION, COMMUNICATION, OPERATIONS, OBSTACLES, ADMINISTRATIVE, WEATHER, SAFETY, OTHER
-  - `subcategory` - Further classification
-  - `affected_elements[]` - Elements affected with `type`, `identifier`, `effect`, `details`
-  - `map_elements[]` - Spatial data with `element_type` (line/polygon/point), `coordinates`, `description`, `geojson`, `bottom`/`top` vertical limits
-  - `schedules[]` - Recurrence info with `source`, `description`, `rrule`, `duration_hrs`, `is_sunrise_sunset`
-  - `schedule_description` - Human-readable schedule text
-
-### `get_affected_elements`
-
-Extracts and displays all affected elements from NOTAMs in a structured, human-readable summary. Best for quick operational awareness and flight planning.
-
-**Parameters:** Same as `get_notams`.
-
-**Returns:** Formatted text summary including:
-- Disclaimer to refer to official sources
-- Time period and total NOTAMs count
-- Airports affected
-- NOTAM categories with counts
-- Per-airport breakdown with elements sorted by priority:
-  - Element types: RUNWAY, TAXIWAY, LIGHTING, SERVICE, PROCEDURE, APRON, APPROACH, NAVAID, AIRSPACE, OTHER
-  - Identifier, effect, and details for each element
-
-## Available Resources
-
-- `config://api` - API configuration, usage limits, and common ICAO code examples
-
-## Available Prompts
-
-- `analyze_notams` - Generates a structured analysis prompt for the given `airport_codes` covering:
-  1. Summary of active NOTAMs by category
-  2. Critical items affecting flight operations
-  3. Temporary restrictions or warnings
-  4. Expected duration of significant NOTAMs
-  5. Recommendations for flight planning
-
-## How to Use the Tools
+## How to Query NOTAMs
 
 When a user asks about NOTAMs, airport conditions, or flight planning:
 
-1. **Identify the airports** - Convert airport names to ICAO codes (e.g., JFK = KJFK, Heathrow = EGLL, Munich = EDDM, Warsaw Chopin = EPWA)
-2. **Determine the time range** - Use `hours_from_now` for relative queries ("next 48 hours") or `starts_at`/`ends_at` for specific date ranges
-3. **Choose the right tool:**
-   - Use `get_notams` when the user needs full NOTAM details, raw messages, or wants to examine specific NOTAMs
-   - Use `get_affected_elements` when the user needs a quick operational overview of what's affected at an airport
-4. **Present results clearly** - Organize by severity/impact, highlight critical items (closures, hazards), and provide actionable flight planning recommendations
+1. **Identify the airports** — convert airport names to ICAO codes (e.g., JFK = KJFK, Heathrow = EGLL, Munich = EDDM, Warsaw Chopin = EPWA)
+2. **Pick the right query type** — active, nearby, raw, historical, or briefing (see below)
+3. **Write and execute a Python script** using `notamify-sdk`
+4. **Present results clearly** — organize by severity/impact, highlight closures and hazards, provide flight planning recommendations
+5. **Always remind the user** that NOTAM data is for informational purposes only — refer to official sources for operational decisions
+
+## Query Types and Code Patterns
+
+### Active NOTAMs (most common)
+
+Use when the user asks about current or upcoming NOTAMs for specific airports. Returns auto-paginated iterator.
+
+```python
+from datetime import datetime, timedelta
+from notamify_sdk import NotamifyClient, ActiveNotamsQuery
+
+client = NotamifyClient()
+query = ActiveNotamsQuery(
+    location=["KJFK", "EGLL"],
+    starts_at=datetime.utcnow(),
+    ends_at=datetime.utcnow() + timedelta(hours=48),
+    per_page=30
+)
+
+for notam in client.notams.active(query):
+    interp = notam.interpretation
+    print(f"[{notam.icao_code}] {notam.notam_number}")
+    if interp:
+        print(f"  Category: {interp.category}/{interp.subcategory}")
+        print(f"  Summary: {interp.excerpt}")
+        for elem in interp.affected_elements:
+            print(f"  Affected: {elem.type} {elem.identifier} — {elem.effect}")
+    else:
+        print(f"  Message: {notam.message}")
+    print()
+```
+
+**ActiveNotamsQuery parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `location` | list[str] | Yes | — | ICAO (4-char) or domestic (3-char) codes. Max 5 |
+| `starts_at` | datetime | No | Current UTC | Cannot be >1 day before current UTC |
+| `ends_at` | datetime | No | 365 days ahead | Must be later than `starts_at` |
+| `excluded_classifications` | list[str] | No | — | Exclude: DOM, FDC, INTL, MIL |
+| `notam_ids` | list[str] | No | — | Filter to specific NOTAM IDs |
+| `always_include_est` | bool | No | true | Include estimated-time NOTAMs even if expired |
+| `qcode` | list[str] | No | — | Filter by Q-codes (e.g., QMRLC, QWULW) |
+| `category` | list[str] | No | — | AERODROME, AIRSPACE, NAVIGATION, COMMUNICATION, OPERATIONS, OBSTACLES, ADMINISTRATIVE, WEATHER, SAFETY, OTHER, ALL |
+| `subcategory` | list[str] | No | — | Filter by interpretation subcategory |
+| `affected_element` | list | No | — | Filter by effect (CLOSED, RESTRICTED, HAZARD, UNSERVICEABLE, WORK_IN_PROGRESS, CAUTION) and/or type (RUNWAY, TAXIWAY, APPROACH, NAVAID, AIRSPACE, APRON, LIGHTING, SERVICE, PROCEDURE, OTHER) |
+| `page` | int | No | 1 | Start page |
+| `per_page` | int | No | 10 | Results per page (max 30) |
+
+### Nearby NOTAMs
+
+Use when the user provides coordinates or asks about NOTAMs near a geographic point (e.g., along a flight route). Returns auto-paginated iterator.
+
+```python
+from notamify_sdk import NotamifyClient, NearbyNotamsQuery
+
+client = NotamifyClient()
+query = NearbyNotamsQuery(lat=51.4775, lon=-0.4614, radius_nm=15.0)
+
+for notam in client.notams.nearby(query):
+    print(f"{notam.notam_number}: {notam.interpretation.excerpt if notam.interpretation else notam.message}")
+```
+
+**NearbyNotamsQuery additional parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `lat` | float | Yes | — | Latitude in decimal degrees (-90 to 90) |
+| `lon` | float | Yes | — | Longitude in decimal degrees (-180 to 180) |
+| `radius_nm` | float | No | 1 | Search radius in nautical miles (0.1–25) |
+
+Also accepts `starts_at`, `ends_at`, `excluded_classifications`, `qcode`, `category`, `subcategory`, `affected_element`, `always_include_est`, `page`, `per_page`.
+
+### Historical/Archive NOTAMs
+
+Use when the user asks about NOTAMs that were active on a past date (incident investigation, compliance audits). Returns auto-paginated iterator.
+
+```python
+from datetime import date
+from notamify_sdk import NotamifyClient, HistoricalNotamsQuery
+
+client = NotamifyClient()
+query = HistoricalNotamsQuery(
+    location=["EDDM", "EGLL"],
+    valid_at=date(2025, 9, 20)
+)
+
+for notam in client.notams.historical(query):
+    print(f"{notam.notam_number} [{notam.icao_code}]: {notam.interpretation.excerpt if notam.interpretation else notam.message}")
+```
+
+**HistoricalNotamsQuery parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `valid_at` | date | Yes | — | Date to check (YYYY-MM-DD). Cannot be in the future |
+| `location` | list[str] | No | — | ICAO/domestic codes. Max 5 |
+| `notam_ids` | list[str] | No | — | Filter to specific NOTAM IDs |
+| `category` | list[str] | No | — | Filter by interpretation category |
+| `subcategory` | list[str] | No | — | Filter by subcategory |
+| `affected_element` | list | No | — | Filter by effect and/or type |
+| `always_include_est` | bool | No | true | Include estimated-time NOTAMs |
+| `page` | int | No | 1 | Start page |
+| `per_page` | int | No | 10 | Results per page (max 30) |
+
+If none of the requested locations exist in the archive, the API returns 404 without charging credits.
+
+### Flight Briefing (async)
+
+Use when the user asks for a structured flight briefing between origin and destination airports. This is an async job — you submit a request and poll for completion.
+
+```python
+import time
+from datetime import datetime, timedelta
+from notamify_sdk import NotamifyClient, GenerateFlightBriefingRequest, LocationWithType
+
+client = NotamifyClient()
+
+job = client.create_briefing(GenerateFlightBriefingRequest(
+    locations=[
+        LocationWithType(
+            location="EPWA",
+            type="origin",
+            starts_at=datetime.utcnow() + timedelta(hours=3),
+            ends_at=datetime.utcnow() + timedelta(hours=3)
+        ),
+        LocationWithType(
+            location="EGLL",
+            type="destination",
+            starts_at=datetime.utcnow() + timedelta(hours=6),
+            ends_at=datetime.utcnow() + timedelta(hours=8)
+        ),
+    ],
+    aircraft_type="B738",
+    origin_runway="RWY11",
+    destination_runway="RWY27L",
+))
+
+print(f"Briefing job submitted: {job.uuid}")
+
+while True:
+    status = client.get_briefing_status(job.uuid)
+    if status.status == "completed":
+        briefing = status.response
+        break
+    elif status.status == "failed":
+        raise RuntimeError("Briefing generation failed")
+    time.sleep(2)
+```
+
+**GenerateFlightBriefingRequest parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `locations` | list[LocationWithType] | Yes | Origin and destination airports with time windows |
+| `aircraft_type` | str | Yes | ICAO aircraft type code (e.g., "B738", "A320") |
+| `origin_runway` | str | Yes | Departure runway (e.g., "RWY11") |
+| `destination_runway` | str | Yes | Arrival runway (e.g., "RWY27L") |
+
+**LocationWithType fields:** `location` (ICAO code), `type` ("origin" or "destination"), `starts_at`, `ends_at`.
+
+## NOTAM Response Object
+
+All query endpoints return NOTAM objects with these fields:
+
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| `notam_number` | str | No | Official NOTAM number |
+| `icao_code` | str | Yes | ICAO airport code |
+| `message` | str | No | Human-readable text |
+| `icao_message` | str | Yes | ICAO-formatted text |
+| `valid_from` | datetime | No | Validity start |
+| `valid_to` | datetime | No | Validity end |
+| `interpretation` | object | Yes | AI interpretation |
+
+**Interpretation fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `description` | str | Detailed interpretation |
+| `excerpt` | str | Brief summary |
+| `category` | str | AERODROME, AIRSPACE, NAVIGATION, COMMUNICATION, OPERATIONS, OBSTACLES, ADMINISTRATIVE, WEATHER, SAFETY, OTHER |
+| `subcategory` | str | Further classification |
+| `affected_elements` | list | Elements with `type`, `identifier`, `effect`, `details` |
+| `map_elements` | list | Spatial data with `element_type`, `coordinates`, `geojson`, vertical limits |
+| `schedules` | list | Recurrence info with `rrule`, `duration_hrs`, `is_sunrise_sunset` |
+| `schedule_description` | str | Human-readable schedule |
+
+## Error Handling
+
+The SDK raises typed exceptions:
+
+```python
+from notamify_sdk import APIError
+
+try:
+    for notam in client.notams.active(query):
+        print(notam.notam_number)
+except APIError as e:
+    print(f"HTTP {e.status}: {e.message}")
+```
+
+| Exception | Condition |
+|-----------|-----------|
+| `APIError` | Non-2xx HTTP response or connection failure (`e.status`, `e.message`, `e.payload`) |
+| `pydantic.ValidationError` | Invalid query parameters (e.g., `per_page > 30`) |
 
 ## Example Interactions
 
 **"What are the current NOTAMs for JFK?"**
-```
-get_notams(locations="KJFK")
-```
+Query active NOTAMs for `["KJFK"]` with default 24h window.
 
 **"I'm flying to Munich tomorrow. What should I know?"**
-```
-get_affected_elements(locations="EDDM", hours_from_now=48)
-```
+Query active NOTAMs for `["EDDM"]` with `ends_at` set to 48h ahead. Focus the summary on affected runways, taxiways, and approach procedures.
 
-**"Show me NOTAMs for the London airports for this weekend"**
-```
-get_notams(locations="EGLL,EGLC,EGSS,EGGW,EGKK", starts_at="2026-04-04T00:00:00Z", ends_at="2026-04-05T23:59:59Z")
-```
+**"Show me NOTAMs for the London airports this weekend"**
+Query active NOTAMs for `["EGLL", "EGLC", "EGSS", "EGGW", "EGKK"]` with explicit start/end dates.
 
-**"What runways are closed at O'Hare and LAX right now?"**
-```
-get_affected_elements(locations="KORD,KLAX", hours_from_now=1)
-```
+**"What runways are closed at O'Hare and LAX?"**
+Query active NOTAMs for `["KORD", "KLAX"]` with short time window. Filter output to RUNWAY type with CLOSED effect.
 
-## Important Limitations
+**"Any NOTAMs near 50.1N 22.0E within 15 nautical miles?"**
+Use nearby query with `lat=50.1`, `lon=22.0`, `radius_nm=15`.
 
-- **Maximum 5 ICAO codes** per request
-- **Start date** cannot be earlier than 1 day before current UTC time
+**"What NOTAMs were active at Frankfurt on September 20, 2025?"**
+Use historical query with `location=["EDDF"]`, `valid_at=date(2025, 9, 20)`.
+
+**"Generate a flight briefing from Warsaw to London, B738"**
+Use `create_briefing` with origin EPWA and destination EGLL, poll for result.
+
+## Limitations
+
+- **Max 5 ICAO codes** per request
+- **Start date** cannot be earlier than 1 day before current UTC (active/nearby)
 - **End date** must be later than start date
-- **Page size** limited to 30 items per page (pagination is automatic)
-- All times must be in **ISO 8601 format**: `YYYY-MM-DDTHH:MM:SSZ`
-- Location codes must be **3-4 character alphanumeric** ICAO or domestic airport codes
-- Category/subcategory/affected_element filtering happens post-interpretation at the API level; `total_count` may reflect pre-filter numbers
+- **Archive date** cannot be in the future
+- **Nearby radius** 0.1–25 nautical miles
+- **Pagination** max 30 items per page (SDK auto-paginates)
+- All times are **UTC**
 
-## Common ICAO Codes Reference
+## Common ICAO Codes
 
 | Airport | ICAO | City |
 |---------|------|------|
@@ -149,239 +305,10 @@ get_affected_elements(locations="KORD,KLAX", hours_from_now=1)
 | Changi | WSSS | Singapore |
 | Haneda | RJTT | Tokyo |
 
----
+## Links
 
-## Notamify API Reference
-
-The Notamify API provides four endpoints. The MCP server currently uses the Active NOTAMs endpoint. This section documents the full API for reference and future extension.
-
-### Authentication
-
-- **Type:** HTTP Bearer Token
-- **Header:** `Authorization: Bearer YOUR_API_KEY`
-- **API Key:** Generate at [notamify.com/api-manager](https://notamify.com/api-manager)
-- **Plan:** API access requires a Notamify Pro plan (7-day free trial with 50 credits)
-- **Protocol:** HTTPS only - HTTP requests fail automatically
-
-**Configuration resolution order (Python SDK):**
-1. `NOTAMIFY_TOKEN` environment variable
-2. Path specified in `NOTAMIFY_CONFIG_FILE` environment variable
-3. Default config at `~/.config/notamify/config.json`
-
-**Error response for invalid/missing key:**
-```json
-{"status": "error", "message": "Invalid or missing API key."}
-```
-
-### Python SDK
-
-```bash
-pip install notamify-sdk
-```
-
-```python
-from notamify_sdk import NotamifyClient
-client = NotamifyClient(token="YOUR_API_KEY")
-```
-
-### Endpoint 1: Active NOTAMs
-
-`GET https://api.notamify.com/api/v2/notams`
-
-Returns active NOTAMs with AI-generated interpretations filtered by location and date range. This is the endpoint used by the MCP server tools.
-
-**Query Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `location` | string[] | No | - | ICAO (4-char) or domestic (3-char) airport codes. Max 5 |
-| `starts_at` | datetime | No | Current UTC | Start date (`YYYY-MM-DDTHH:MM:SSZ`). Cannot be >1 day before current UTC |
-| `ends_at` | datetime | No | 365 days from starts_at | End date. Must be later than `starts_at` |
-| `excluded_classifications` | string[] | No | - | Exclude: DOM, FDC, INTL, MIL |
-| `notam_ids` | string[] | No | - | Filter to specific NOTAM IDs |
-| `always_include_est` | boolean | No | true | Include estimated-time NOTAMs even if expired |
-| `page` | integer | No | 1 | Page number |
-| `per_page` | integer | No | 30 | Results per page (max 30) |
-| `qcode` | string[] | No | - | Filter by Q-codes (e.g., QMRLC, QWULW) |
-| `category` | string[] | No | - | Filter by interpretation category: ALL, AERODROME, AIRSPACE, NAVIGATION, COMMUNICATION, OPERATIONS, OBSTACLES, ADMINISTRATIVE, WEATHER, SAFETY, OTHER |
-| `subcategory` | string[] | No | - | Filter by interpretation subcategory |
-| `affected_element` | object[] | No | - | Filter by effect (CLOSED, RESTRICTED, HAZARD, UNSERVICEABLE, WORK_IN_PROGRESS, CAUTION) and/or type (AERODROME, RUNWAY, TAXIWAY, APPROACH, NAVAID, AIRSPACE, APRON, LIGHTING, SERVICE, PROCEDURE, OTHER) |
-
-**Example:**
-```
-GET /api/v2/notams?location=EDDM&location=EGLL&starts_at=2025-05-06T00:00:00.000Z&ends_at=2025-05-06T23:59:00.000Z
-```
-
-**Python SDK:**
-```python
-from datetime import datetime, timedelta
-from notamify_sdk import NotamifyClient, ActiveNotamsQuery
-
-client = NotamifyClient(token="YOUR_API_KEY")
-query = ActiveNotamsQuery(
-    location=["EDDM", "EGLL", "EPWA", "LIRP"],
-    starts_at=datetime.now(),
-    ends_at=datetime.now() + timedelta(days=1)
-)
-for notam in client.notams.active(query):
-    print(f"{notam.notam_number} [{notam.icao_code}]: {notam.interpretation.excerpt}")
-```
-
-### Endpoint 2: Nearby NOTAMs
-
-`GET https://api.notamify.com/api/v2/notams/nearby`
-
-Returns NOTAMs whose map objects intersect a given geographic point and radius. Useful for en-route flight planning and area-based searches.
-
-**Query Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `lat` | number | Yes | - | Latitude in decimal degrees (-90 to 90) |
-| `lon` | number | Yes | - | Longitude in decimal degrees (-180 to 180) |
-| `radius_nm` | number | No | 1 | Search radius in nautical miles (0.1-25) |
-| `starts_at` | datetime | No | Current UTC | Start of time window |
-| `ends_at` | datetime | No | 365 days ahead | End of time window |
-| `page` | integer | No | 1 | Page number |
-| `per_page` | integer | No | 30 | Results per page (max 30) |
-| `excluded_classifications` | string[] | No | - | Exclude: DOM, FDC, INTL, MIL |
-| `qcode` | string[] | No | - | Filter by Q-codes |
-| `notam_ids` | string[] | No | - | Filter to specific NOTAM IDs |
-| `always_include_est` | boolean | No | true | Include estimated-time NOTAMs |
-| `category` | string[] | No | - | Filter by interpretation category |
-| `subcategory` | string[] | No | - | Filter by subcategory |
-| `affected_element` | object[] | No | - | Filter by effect and/or type |
-
-**Example:**
-```
-GET /api/v2/notams/nearby?lat=50.14132&lon=21.9992&radius_nm=10
-```
-
-**Python SDK:**
-```python
-from notamify_sdk import NotamifyClient, NearbyNotamsQuery
-
-client = NotamifyClient(token="YOUR_API_KEY")
-query = NearbyNotamsQuery(lat=50.14132, lon=21.9992, radius_nm=10.0)
-result = client.get_nearby_notams(query)
-for notam in result.notams:
-    print(f"{notam.notam_number}: {notam.interpretation.excerpt}")
-```
-
-### Endpoint 3: Raw NOTAMs
-
-`GET https://api.notamify.com/api/v2/notams/raw`
-
-Returns NOTAMs **without AI interpretations** - the `interpretation` field is always `null`. Useful for verification or when you only need the raw NOTAM text.
-
-**Query Parameters:** Same as Active NOTAMs endpoint.
-
-**Example:**
-```
-GET /api/v2/notams/raw?location=EDDM&location=EGLL&starts_at=2025-05-06T00:00:00.000Z&ends_at=2025-05-06T23:59:00.000Z
-```
-
-**Python SDK:**
-```python
-from datetime import datetime, timedelta
-from notamify_sdk import NotamifyClient, ActiveNotamsQuery
-
-client = NotamifyClient(token="YOUR_API_KEY")
-query = ActiveNotamsQuery(
-    location=["EDDM", "EGLL"],
-    starts_at=datetime.now(),
-    ends_at=datetime.now() + timedelta(days=1)
-)
-result = client.get_raw_notams(query)
-```
-
-### Endpoint 4: Historical/Archive NOTAMs
-
-`GET https://api.notamify.com/api/v2/notams/archive`
-
-Returns NOTAMs that were active on a specific past date. Useful for incident investigation, compliance audits, and historical analysis.
-
-**Query Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `valid_at` | string (YYYY-MM-DD) | Yes | - | Date to check NOTAM validity. Cannot be in the future |
-| `location` | string[] | No | - | ICAO (4-char) or domestic (3-char) codes. Max 5 |
-| `notam_ids` | string[] | No | - | Filter to specific NOTAM IDs |
-| `page` | integer | No | 1 | Page number |
-| `per_page` | integer | No | 30 | Results per page (max 30) |
-| `category` | string[] | No | - | Filter by interpretation category |
-| `subcategory` | string[] | No | - | Filter by subcategory |
-| `affected_element` | object[] | No | - | Filter by effect and/or type |
-| `always_include_est` | boolean | No | true | Include estimated-time NOTAMs |
-
-**Note:** If none of the requested locations are available in the Notamify database, the service responds with a 404 without charging credits.
-
-**Example:**
-```
-GET /api/v2/notams/archive?location=EDDM&location=EGLL&valid_at=2025-09-20
-```
-
-**Python SDK:**
-```python
-from datetime import date
-from notamify_sdk import NotamifyClient, HistoricalNotamsQuery
-
-client = NotamifyClient(token="YOUR_API_KEY")
-query = HistoricalNotamsQuery(
-    location=["EDDM", "EGLL"],
-    valid_at=date(2025, 9, 20)
-)
-result = client.get_historical_notams(query)
-```
-
-### Response Schema (All Endpoints)
-
-All endpoints return the same `NotamListResult` structure:
-
-```json
-{
-  "notams": [NotamDTO],
-  "total_count": integer,
-  "page": integer,
-  "per_page": integer
-}
-```
-
-**NotamDTO:**
-
-| Field | Type | Nullable | Description |
-|-------|------|----------|-------------|
-| `id` | UUID | No | Unique NOTAM identifier |
-| `notam_number` | string | No | NOTAM number/identifier |
-| `location` | string | No | Applicable location |
-| `icao_code` | string | Yes | ICAO airport/facility code |
-| `classification` | string | Yes | DOM, FDC, INTL, or MIL |
-| `starts_at` | datetime | No | Validity start |
-| `ends_at` | datetime | No | Validity end |
-| `issued_at` | datetime | No | Issue datetime |
-| `is_estimated` | boolean | No | Times are estimated (EST) |
-| `is_permanent` | boolean | No | NOTAM is permanent (PERM) |
-| `message` | string | No | Human-readable message |
-| `icao_message` | string | Yes | ICAO-formatted message |
-| `qcode` | string | Yes | Raw 5-letter Q-code (e.g., QMRLC) |
-| `interpretation` | object | Yes | AI interpretation (always null for Raw endpoint) |
-
-**NotamInterpretationDTO:**
-
-| Field | Type | Nullable | Description |
-|-------|------|----------|-------------|
-| `description` | string | No | Detailed interpretation |
-| `excerpt` | string | No | Brief summary |
-| `category` | string | No | Interpretation category |
-| `subcategory` | string | No | Interpretation subcategory |
-| `map_elements` | array | Yes | Geographic elements with coordinates, GeoJSON, vertical limits |
-| `affected_elements` | array | No | Affected elements (type, identifier, effect, details) |
-| `schedules` | array | No | Schedule interpretations (source, description, rrule, duration_hrs) |
-| `schedule_description` | string | Yes | Human-readable schedule text |
-
-### API Documentation Links
-
-- **API Docs:** [skymerse.gitbook.io/notamify-api](https://skymerse.gitbook.io/notamify-api)
-- **API Manager:** [notamify.com/api-manager](https://notamify.com/api-manager)
-- **MCP Protocol:** [modelcontextprotocol.io](https://modelcontextprotocol.io)
+- **API Docs:** https://skymerse.gitbook.io/notamify-api
+- **SDK Docs:** https://skymerse.gitbook.io/notamify-api/sdk/python
+- **API Manager:** https://notamify.com/api-manager
+- **Source:** https://github.com/skymerse/notamify-mcp
+- **PyPI:** `pip install notamify-sdk`

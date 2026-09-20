@@ -1,6 +1,6 @@
 # Notamify MCP Server
 
-A Model Context Protocol (MCP) server that provides access to NOTAMs (Notice to Airmen) data through the Notamify API. This server allows LLMs to retrieve aviation notices, warnings, and operational information for airports worldwide.
+A Model Context Protocol (MCP) server that provides access to NOTAMs (Notice to Airmen) data through the Notamify API. It uses MCP Python SDK 2.x and negotiates the current `2026-07-28` MCP protocol with modern clients while retaining SDK-level compatibility with earlier protocol revisions.
 
 ## Features
 
@@ -19,9 +19,10 @@ A Model Context Protocol (MCP) server that provides access to NOTAMs (Notice to 
 
 ### Setup
 
-1. **Fetch the repository**:
+1. **Clone the repository**:
    ```bash
-   git pull https://github.com/skymerse/notamify-mcp
+   git clone https://github.com/skymerse/notamify-mcp.git
+   cd notamify-mcp
    ```
 
 
@@ -29,17 +30,17 @@ A Model Context Protocol (MCP) server that provides access to NOTAMs (Notice to 
    ```bash
    # Using uv (recommended)
    uv sync
-   
+
    # Or using pip
-   pip install -r requirements.txt
+   pip install -e .
    ```
 
-3. **Configure API key**:
+3. **Configure the API key**:
    ```bash
-   cp env.example .env
-   # Edit .env and add your API key:
-   # NOTAMIFY_API_KEY=your_actual_api_key_here
+   export NOTAMIFY_API_KEY=your_actual_api_key_here
    ```
+
+   Keep the key in your environment or your MCP host's secret configuration. Do not commit it to the repository.
 
 4. **Make executable**:
    ```bash
@@ -57,32 +58,45 @@ uv run mcp install notamify_server.py --name "Notamify NOTAM Server"
 uv run mcp install notamify_server.py -v NOTAMIFY_API_KEY=your_key_here
 ```
 
+### Development and MCP Inspector
+
+```bash
+# Start the MCP Inspector against the local server
+uv run mcp dev notamify_server.py
+
+# Run the stdio server directly
+uv run mcp run notamify_server.py
+
+# Or use the installed console command
+uv run notamify-mcp
+```
+
 ## API Tools
 
 ### `get_notams`
 Retrieve NOTAMs for specified airports and time periods.
 
 **Parameters:**
-- `locations` (required) - Comma-separated ICAO codes (max 5)
+- `locations` (required) - JSON list of ICAO codes (max 5)
 - `starts_at` (optional) - Start time in ISO 8601 format
 - `ends_at` (optional) - End time in ISO 8601 format
 - `hours_from_now` (optional) - Hours from current time (default: 24)
 
 **Example:**
 ```
-get_notams(locations="KJFK,EGLL", hours_from_now=48)
+get_notams(locations=["KJFK", "EGLL"], hours_from_now=48)
 ```
 
 ### `get_affected_elements`
 Extract and display all affected elements from NOTAMs for specified airports.
 
 **Parameters:**
-- `locations` (required) - Comma-separated ICAO codes (max 5)
+- `locations` (required) - JSON list of ICAO codes (max 5)
 - `starts_at` (optional) - Start time in ISO 8601 format  
 - `ends_at` (optional) - End time in ISO 8601 format
 - `hours_from_now` (optional) - Hours from current time (default: 24)
 
-**Returns:** Comprehensive summary including:
+**Returns:** A comprehensive summary including:
 - Total NOTAMs and affected airports
 - Categories of NOTAMs (runway, navigation, airspace, etc.)
 - Specific affected elements with type, identifier, effect, and details
@@ -92,7 +106,6 @@ Extract and display all affected elements from NOTAMs for specified airports.
 ## Resources & Prompts
 
 ### Resources
-- `notams://airports/{icao_codes}` - Get current NOTAMs for airports
 - `config://api` - API configuration and usage limits
 
 ### Prompts
@@ -103,13 +116,13 @@ Extract and display all affected elements from NOTAMs for specified airports.
 ### Current NOTAMs
 **Query:** "What are the current NOTAMs for JFK and Heathrow?"
 ```
-get_notams(locations="KJFK,EGLL")
+get_notams(locations=["KJFK", "EGLL"])
 ```
 
 ### Flight Planning Analysis
 **Query:** "I'm flying to Munich tomorrow. What NOTAMs should I know about?"
 ```
-get_affected_elements(locations="EDDM", hours_from_now=48)
+get_affected_elements(locations=["EDDM"], hours_from_now=48)
 ```
 
 ## Limitations
@@ -124,9 +137,16 @@ get_affected_elements(locations="EDDM", hours_from_now=48)
 
 ### Running Tests
 ```bash
-uv sync --group dev
-uv run pytest
+uv sync --all-groups
+
+# Unit, API-client, and in-memory MCP protocol tests
+uv run pytest -m "not live"
+
+# Optional real Notamify API test (may consume API credits)
+NOTAMIFY_API_KEY=your_key_here uv run pytest -m live
 ```
+
+The protocol tests connect both through the SDK's in-memory `Client` and a real stdio subprocess, verify negotiation of MCP `2026-07-28`, check server identity and capabilities, and exercise both tools, the resource, and the prompt end to end.
 
 ### Contributing
 1. Fork the repository
@@ -137,7 +157,8 @@ uv run pytest
 ## Support
 
 - **Notamify API Docs**: [api.notamify.com/docs](https://api.notamify.com/docs)
-- **MCP Protocol**: [modelcontextprotocol.io](https://modelcontextprotocol.io)
+- **MCP Protocol (latest)**: [modelcontextprotocol.io/specification/latest](https://modelcontextprotocol.io/specification/latest)
+- **MCP Python SDK v2**: [py.sdk.modelcontextprotocol.io](https://py.sdk.modelcontextprotocol.io/)
 - **Issues**: Report bugs via GitHub issues
 
 ## License
@@ -146,4 +167,4 @@ MIT License - see LICENSE file for details.
 
 ---
 
-Built with [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) and [Notamify API](https://api.notamify.com) 
+Built with [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) and [Notamify API](https://api.notamify.com)
